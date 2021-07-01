@@ -26,16 +26,15 @@ create other similar ROS 2 projects.
   application/library. Use the `ament_cmake` build system which
   simplifies integration with the ROS 2 package system. It is
   also possible to use "plain CMake" for more advanced use cases,
-  and Python packages can use Python's `distutils` for a more "native"
-  toolchain.
+  while Python packages can use `ament_python`.
 
   ```sh
   ros2 pkg create --build-type ament_cmake hello_perftest
   ```
 
 - The command will generate a empty package stub in the current  
-  directory (NOTE: if you don't already know/have installed `tree`,
-  I highly recommend it: `sudo apt install tree`):
+  directory (NOTE: if you don't already have `tree` installed:
+  `sudo apt install tree`):
 
   ```sh
   tree hello_perftest
@@ -131,8 +130,9 @@ create other similar ROS 2 projects.
   ```
 
 - Modify [`hello_perftest_interfaces/CMakeLists.txt`](hello_perftest_interfaces/CMakeLists.txt) to process the custom
-  message definitions, generate the required source code, built it into a
-  libraries, and install it so that the types may be used by other packages.
+  message definitions, generate the required source code, build them into a
+  library, and install the resulting artifacts so that the types may be used by
+  other packages.
 
   - Load packages `std_msgs` and `rosidl_default_generators`. Dependencies
     are loaded usign CMake's `find_package()` function. All required search
@@ -198,50 +198,18 @@ create other similar ROS 2 projects.
   Extend this class into two concrete classes, 
   `hello_perftest::LatencyPublisher` and `hello_perftest::LatencySubscriber`.
 
-  - See [hello_perftest/latency.hpp](hello_perftest/include/hello_perftest/latency_pub.hpp) for the definition of the classes which is very simple.
-
-    The base class creates a publisher and a subcriber on two custom topics.
-    The endpoints use custom Quality of Service. The subscriber is associated
-    with a virtual callback to be implemented by each concrete subclass.
-
-    The nodes declare some "parameters" to control some configuration options.
-    This is just to showcase the usage of [ROS 2 parameters](https://docs.ros.org/en/galactic/Concepts/About-ROS-2-Parameters.html) which would allow
-    the application to be dynamically reconfigured using YAML or command line
-    arguments.
-
-  - Each concrete class is registered as an "rclcpp component" in
-    [latency.cpp](hello_perftest/src/latency/latency.cpp). This will allow us
-    to build all the nodes into a single shared library, and then automatically
-    generate executables to "spin them up" in an independent process using
-    some CMake function.
-
-  - The nodes can also be used in a custom, hand-written `main()`. In this case
-    it is possible to build the nodei instances passing any number of custom 
-    arguments to their constructor (whereas the node classes must have a 
-    constructor which accepts a single argument of type `rclcpp::NodeOptions` 
-    in order to be used as components).
-
-  - The publisher uses the ROS graph events to wait for the discovery of the
-    expected number of subscribers before beginning the test.
-
-    - The nodes could also be turned into "managed nodes" by making them extend
-      `rclcpp_lifecycle::LifecycleNode` instead of `rclcpp::Node`, and 
-      by mapping various test actions to "lifecycle transitions" which may be
-      then controlled by an external client
-      (see this [design document](https://design.ros2.org/articles/node_lifecycle.html) and this [example](https://github.com/ros2/demos/tree/master/lifecycle) for more information on managed nodes).
-
 - Modify `hello_perftest/CMakeLists.txt` to build the example latency  
   application.
 
   - Load the package with custom interfaces and other dependencies:
 
     ```cmake
-    find_package(rclcpp)
-    find_package(rclcpp_components)
+    find_package(rclcpp REQUIRED)
+    find_package(rclcpp_components REQUIRED)
     find_package(${PROJECT_NAME}_interfaces REQUIRED)
     ```
   
-  - Generate a library with for the node components. We build a single
+  - Generate a library for the node components. We build a single
     shared library for the whole package.
 
     ```cmake
@@ -315,82 +283,122 @@ create other similar ROS 2 projects.
   git commit -m "Initial commit".
   ```
 
-- Create a workspace and build the packages:
+## Example application
+
+See [hello_perftest/latency.hpp](hello_perftest/include/hello_perftest/latency.hpp)
+for the definition of the node classes.
+
+The base class, `LatencyNode`, creates a publisher and a subcriber on two custom
+topics. The endpoints use custom Quality of Service. The subscriber is associated
+with a virtual callback to be implemented by each concrete subclass.
+
+The nodes declare some "parameters" to control some configuration options.
+This is just to showcase the usage of [ROS 2 parameters](https://docs.ros.org/en/galactic/Concepts/About-ROS-2-Parameters.html) to allow
+the application to be dynamically reconfigured using YAML files or command line
+arguments.
+
+Each concrete class (`LatencyPublisher` and `LatencySubscriber`) is registered
+as an "rclcpp component" in [latency.cpp](hello_perftest/src/latency/latency.cpp).
+This will allow us to build all the nodes into a single shared library, and
+then automatically generate executables to "spin them up" in an independent
+process using CMake function `rclcpp_components_register_node()`.
+
+The nodes can also be used in a custom, hand-written `main()`. In this case
+it is possible to build the node instances passing any number of custom 
+arguments to their constructors (whereas the node classes must have a 
+constructor which accepts a single argument of type `rclcpp::NodeOptions`
+in order to be used as components).
+
+The publisher uses the ROS graph events to wait for the discovery of the
+expected number of subscribers before beginning the test.
+
+As an extension, the nodes could be turned into "managed nodes" by making them
+extend `rclcpp_lifecycle::LifecycleNode` instead of `rclcpp::Node`, and
+by mapping various test actions to "lifecycle transitions" which may be
+then controlled by an external client
+(see this [design document](https://design.ros2.org/articles/node_lifecycle.html)
+and this [example](https://github.com/ros2/demos/tree/master/lifecycle) for more
+information on managed nodes).
+
+## Build the repository
+
+Create a workspace directory and build the packages:
+
+```sh
+# Create a workspace directory
+mkdir ws-hello-perftest
+cd ws-hello-perftest
+
+# Create a symlink to the repository's *root*,
+# not to the `hello_perftest` package.
+ln -s ../hello-perftest .
+
+# Build everything with colcon
+colcon build --symlink-install
+```
+
+## Run example applications
+
+- Load the built workspace:
 
   ```sh
-  # Create a workspace directory
-  mkdir ws-hello-perftest
-  cd ws-hello-perftest
-
-  # Create a symlink to the repository's *root*,
-  # not to the `hello_perftest` package.
-  ln -s ../hello-perftest .
-
-  # Build everything with colcon
-  colcon build --symlink-install
+  source install/setup.bash
   ```
 
-- Run test applications:
+- Components can be run using `ros2 run`:
 
-  - Load the built workspace:
+  ```sh
+  # Start a subscriber
+  ros2 run hello_perftest latency_sub
 
-    ```sh
-    source install/setup.bash
-    ```
+  # Start a publisher
+  ros2 run hello_perftest latency_pub
+  ```
 
-  - Components can be run using `ros2 run`:
+- Hand-written executables can be run by hand:
 
-    ```sh
-    # Start a subscriber
-    ros2 run hello_perftest latency_sub
+  ```sh
+  install/hello_perftest/bin/latency_pub_main
 
-    # Start a publisher
-    ros2 run hello_perftest latency_pub
-    ```
+  install/hello_perftest/bin/latency_sub_main
+  ```
 
-  - Hand-written executable can be run by hand:
+- Since the nodes use parameters, they can be configured from the
+  command-line. The node name can also be changed when spawning multiple
+  nodes (not necessary, but it allows the nodes to appear with different
+  names in the ROS graph, e.g. if inspected with `rqt`).
 
-    ```sh
-    install/hello_perftest/bin/latency_pub_main
+  ```sh
+  # Change number of expected subscribers
+  ros2 run hello_perftest latency_pub --ros-args -p subscribers_count:=3
 
-    install/hello_perftest/bin/latency_sub_main
-    ```
+  # Start subscribers with different names
+  ros2 run hello_perftest latency_sub --ros-args -r __node:=latency_sub_1
 
-  - Since the nodes use parameters, they can be configured from the
-    command-line. The node name can also be changed when spawning multiple
-    nodes (not necessary, but it allows the nodes to appear with different
-    names in the ROS graph, e.g. if inspected with `rqt`).
+  ros2 run hello_perftest latency_sub --ros-args -r __node:=latency_sub_2
 
-    ```sh
-    # Change number of expected subscribers
-    ros2 run hello_perftest latency_pub --ros-args -p subscribers_count:=3
+  ros2 run hello_perftest latency_sub --ros-args -r __node:=latency_sub_3
 
-    # Start subscribers with different names
-    ros2 run hello_perftest latency_sub --ros-args -r __node:=latency_sub_1
+  ```
 
-    ros2 run hello_perftest latency_sub --ros-args -r __node:=latency_sub_2
+- Parameters could also be changed using a YAML file. For example, save
+  the following as `params.yml`:
 
-    ros2 run hello_perftest latency_sub --ros-args -r __node:=latency_sub_3
+  ```yaml
+  latency_pub:
+    ros__parameters:
+      subscribers_count: 2
+  ```
 
-    ```
+  You can then load the parameters file using argument `--params-file`:
 
-  - Parameters could also be changed using a YAML files. For example, saving
-    the following as `params.yml`:
+  ```sh
+  ros2 run hello_perftest latency_pub --ros-args --params-file params.yml
+  ```
 
-    ```yaml
-    latency_pub:
-      ros__parameters:
-        subscribers_count: 2
-    ```
+- The example also includes an executable which spawns both nodes in a
+  single process:
 
-    You can specify a parameters file with `--params-file`:
-
-    ```sh
-    ros2 run hello_perftest latency_pub --ros-args --params-file params.yml
-    ```
-
-  - The example also includes a process which spawns both nodes:
-
-    ```sh
-    ./install/hello_perftest/bin/latency_single
-    ```
+  ```sh
+  ./install/hello_perftest/bin/latency_single
+  ```
